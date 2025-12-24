@@ -1,0 +1,4 @@
+https://www.scoutos.com/blog/top-5-llm-prompts-to-generate-faqs-from-support-tickets
+https://aclanthology.org/2023.findings-emnlp.435.pdf#:~:text=Harvesting%20question,N%20QA%20extraction
+https://aclanthology.org/anthology-files/pdf/emnlp/2025.emnlp-industry.130.pdf
+https://www.sciencedirect.com/science/article/pii/S2352340923003645#:~:text=conversations%20containing%20around%20seven%20million,it%20has%20been%20open%20sourced

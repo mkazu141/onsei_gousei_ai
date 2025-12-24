@@ -1,0 +1,163 @@
+以下は、あなたが今やっている「対話履歴 → QA（FAQ）生成」のプロンプトチューニングにそのまま使える形で、（1）DialogQAEの“発話タグ→QA復元”思想、（2）AI Knowledge Assistの“実務ルール（PII/雑談/時限/JSON/根拠）”、（3）Beyond-RAGの“質問同定→回答整形の分離”を合体させた提案です。
+
+0) 入力フォーマット（おすすめ）
+
+対話を 発話IDつきで渡すのが、抽出が崩れにくいです。
+
+[1] Customer: こんにちは。注文した商品が届きません。
+[2] Agent: ご迷惑をおかけし申し訳ありません。注文番号を教えてください。
+[3] Customer: 123-456です。
+[4] Agent: 確認します。配送状況は「配達中」で、明日到着予定です。
+...
+
+1) まずこれ：1発で完結する “タグ付け→QA→FAQ化” プロンプト
+
+「長い対話でも一気に」やりたい時の安定版です（end-to-end寄り）。
+
+あなたは「対話履歴からFAQ用のQ&Aを抽出する」専門家です。
+以下の制約と出力形式を必ず守ってください。
+
+# 目的
+Customer/Agent の対話ログから、FAQとして再利用できるQ&Aペアを抽出し、読みやすい自然文のQ/Aに整形してJSONで返す。
+
+# 抽出の前提（重要）
+- Q/Aは1文ずつに限らない。質問も回答も複数発話に分散しうる（N-to-N）。
+- まず各発話にラベルを付け、その後ラベル集合からQAペアを復元し、最後にFAQ文へ整形する。
+- 原則: Customer発話=質問側、Agent発話=回答側。ただし確認質問など例外は許容。
+- 排他制約: 1つの発話は「高々1つのQAペアのQ側 or A側 or どれでもない(O)」のいずれかにのみ属する（重複所属禁止）。
+
+# 除外ルール
+- 雑談・挨拶・相槌のみで情報価値がないものは除外（O）。
+- 個人情報（氏名/住所/電話/メール/注文番号など固有ID）は抽出対象にしない。
+  - Q/A文に必要な場合は [REDACTED] に置換して一般化する。
+- 時限情報（「明日」「今週のキャンペーン」等）はFAQ化に不向きなら一般化するか除外する。
+
+# 生成ルール（FAQ整形）
+- Questionは「ユーザーが検索する形」に言い換える（短く明確に）。
+- Answerは「再現手順・条件・例外」を優先し、冗長な謝罪は最小限に。
+- 製品名/機能名/手続き名が文脈上重要なら必ず含める。曖昧な代名詞（それ/これ）を避ける。
+- 1つのFAQにまとめるべき内容は1つに絞る（複合は分割）。
+
+# 出力形式（JSONのみ。余計な文章は禁止）
+{
+  "utterance_labels": [
+    {"id": 1, "role": "Customer|Agent", "label": "O|Q1|A1|Q2|A2|...", "brief_reason": "短い理由"}
+  ],
+  "qas": [
+    {
+      "qa_id": "QA1",
+      "question": "FAQ用の質問文",
+      "answer": "FAQ用の回答文",
+      "evidence": {
+        "q_utterance_ids": [1, 5],
+        "a_utterance_ids": [2, 6, 7],
+        "snippets": [
+          {"id": 1, "text": "根拠となる短い抜粋（PIIは伏せる）"},
+          {"id": 6, "text": "根拠となる短い抜粋（PIIは伏せる）"}
+        ]
+      },
+      "meta": {
+        "topic": "配送/支払い/返品/アカウント/障害…など",
+        "between_pair_relation": "SF|FIS|ED|CC|BI|UNKNOWN",
+        "in_pair_structure": "disjoint|overlap|unknown",
+        "confidence": 0.0
+      }
+    }
+  ],
+  "discarded": [
+    {"utterance_ids": [3], "reason": "PII"},
+    {"utterance_ids": [8,9], "reason": "chitchat"}
+  ]
+}
+
+# 入力
+<<DIALOG>>
+{ここに発話IDつき対話ログを貼る}
+<<END>>
+
+2) 精度が上がりやすい：2段階（質問同定 → QAペア化）ワークフロー
+
+「質問が散る」「回答が複数箇所に分散」「確認質問が多い」ログに強いです。
+
+Step A：質問候補の同定（Customer目線の“検索クエリ化”）
+あなたは対話ログから「FAQにする価値のある質問候補」を抽出する。
+以下を守ってJSONで返す。
+
+- 雑談/挨拶/相槌/個別注文番号などPII絡みは除外
+- 同じ意味の質問はまとめ、代表質問に正規化
+- 1セッションから最大8件まで（重要度順）
+- 各質問に「根拠となる発話ID（複数可）」を必ず付ける
+
+出力(JSONのみ):
+{
+  "question_candidates":[
+    {"qid":"Q1","question":"正規化した質問文","utterance_ids":[1,4],"intent":"howto|troubleshoot|policy|status|billing|other","confidence":0.0}
+  ],
+  "excluded":[{"utterance_ids":[3],"reason":"PII"}]
+}
+
+<<DIALOG>>
+{対話ログ}
+<<END>>
+
+Step B：各質問に対する回答抽出（根拠ID→FAQ整形）
+あなたは「質問候補」と「対話ログ」から、各質問に対応する回答根拠を特定し、FAQ文章に整形する。
+
+ルール:
+- Answer根拠はAgent発話中心だが、必要ならCustomer発話も可（例: 追加条件の提示）
+- 1発話は高々1つのQAにしか割り当てない（重複禁止）
+- PIIは[REDACTED]に置換し一般化
+- 「まず結論→手順→例外/注意」の順で回答を書く
+- 根拠snippetsを必ず付ける
+
+出力(JSONのみ):
+{
+  "qas":[
+    {
+      "qa_id":"QA1",
+      "question":"...",
+      "answer":"...",
+      "evidence":{"q_utterance_ids":[...],"a_utterance_ids":[...],"snippets":[{"id":..,"text":"..."}]},
+      "meta":{"topic":"...","confidence":0.0}
+    }
+  ],
+  "conflicts":[
+    {"utterance_id": 12, "reason": "この発話はQA1とQA3の両方に見えるが重複禁止のため保留"}
+  ]
+}
+
+<<QUESTION_CANDIDATES_JSON>>
+{StepAのJSON}
+<<END>>
+
+<<DIALOG>>
+{対話ログ}
+<<END>>
+
+3) 仕上げ用：重複排除・代表QA選抜（KB投入向け）
+
+FAQが大量に出る運用なら、最後にこれを挟むのがおすすめです。
+
+あなたはFAQ編集者。入力のQAsを重複クラスタリングし、KBに載せる代表QAだけ残す。
+
+ルール:
+- 意味が同じ/ほぼ同じ質問はまとめる（表現違いは統合）
+- 代表質問は短く検索向きに、代表回答は手順が明確なものを採用
+- 1クラスタにつき1QAを残し、他はsimilarとして保持
+- 出力はJSONのみ
+
+出力:
+{
+  "clusters":[
+    {
+      "cluster_id":"C1",
+      "representative": {"qa_id":"QA12","question":"...","answer":"..."},
+      "similar_qa_ids":["QA3","QA9"],
+      "cluster_title":"ログインできない"
+    }
+  ]
+}
+
+<<QAS_JSON>>
+{抽出済みQAs}
+<<END>>

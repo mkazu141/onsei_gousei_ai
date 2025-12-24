@@ -1,0 +1,169 @@
+以下に、「対話履歴（チャット／コールセンター書き起こし／会議文字起こし）」からQAを生成するためのプロンプトを、実務でそのまま使える形（テンプレ＋JSONスキーマ＋運用向けルール）で提案します。
+
+ポイントはあなたの方針に合わせて：
+
+前処理（ノイズ除去・PII・話題分割）→ QA抽出/生成 → 検証を1つの“レシピ”として実行
+
+根拠（発話ID引用）必須で、幻覚を入りにくくする
+
+将来RAG直答にも回せるよう、整形済みセグメントも一緒に出せる
+
+0) 入力フォーマット（推奨）
+
+LLMに渡す前に、履歴をこの形式にそろえると精度が上がります。
+
+{
+  "channel_type": "chat|call|meeting",
+  "language": "ja",
+  "conversation_id": "C-2025-001",
+  "turns": [
+    {"id": "t001", "speaker_role": "customer|agent|participant|moderator|unknown", "text": "..."},
+    {"id": "t002", "speaker_role": "agent", "text": "..."}
+  ]
+}
+
+1) 出力JSONスキーマ（QA＋根拠＋レビュー）
+
+まず“固定”にするべき出力形です（運用が安定します）。
+
+{
+  "version": "1.0",
+  "conversation_id": "",
+  "language": "ja",
+  "segments": [
+    {
+      "segment_id": "s001",
+      "topic_title": "",
+      "turn_ids": ["t001","t002"],
+      "cleaning_notes": ["removed_greeting", "masked_pii"],
+      "summary": ""
+    }
+  ],
+  "qa_pairs": [
+    {
+      "qa_id": "qa001",
+      "question": "",
+      "answer": "",
+      "answer_style": "faq|troubleshoot|procedure|policy|meeting_decision",
+      "category": "",
+      "tags": ["", ""],
+      "applicability_conditions": "",
+      "escalation_condition": "",
+      "evidence_turn_ids": ["t00x","t00y"],
+      "evidence_quotes": [
+        {"turn_id": "t00x", "quote": "（最大80文字）"}
+      ],
+      "pii_risk": "low|medium|high",
+      "groundedness": "high|medium|low",
+      "needs_review": true,
+      "review_reasons": ["insufficient_evidence", "multiple_topics", "policy_risk"]
+    }
+  ],
+  "skipped_items": [
+    {
+      "turn_ids": ["t0.."],
+      "reason": "no_clear_resolution|too_personal|offtopic|not_actionable"
+    }
+  ]
+}
+
+2) メインプロンプト（推奨：1本で前処理→QA生成まで）
+
+以下を System と User に分けて使うと安定します。
+
+System Prompt（固定・編集不可推奨）
+あなたは「応対履歴からQA（FAQ/手順/方針）を作る」専門のエディタです。
+必ず次のルールを守ってください。
+
+【最重要：根拠主義】
+- 出力する回答は、必ず入力のturns内の内容に根拠があること。
+- 根拠となるturn_idを evidence_turn_ids に必ず含め、短い引用（80文字以内）も1つ以上付けること。
+- 入力に書かれていない事実・手順・数値・設定を推測して補わない。
+- 不明な点がある場合は、answer内に「不明」「要確認」と明示し、needs_review=trueにする。
+
+【前処理（記録と安全）】
+- PII（氏名、電話、メール、住所、顧客ID等）らしき情報は出力に含めない。含まれていた場合はマスクした前提で cleaning_notes に "masked_pii" を記録し、pii_risk を上げる。
+- 挨拶、雑談、相槌、フィラー、署名、定型文、引用返信など、QA化に不要な内容は要約・除去してよい（ただし意味を変えない）。
+- 1つの会話に複数トピックが混ざる場合は、segments に分割し、qa_pairsもトピックごとに分ける。混ざる場合は needs_review=true。
+
+【品質ゲート】
+- groundedness は根拠の明確さで判定（high=根拠が具体的、low=曖昧）。
+- 危険領域（法務、返金、医療、安全、個人情報、契約）に触れる場合は needs_review=true。
+- 出力は必ず指定JSONスキーマに従い、JSONのみを返す。
+
+User Prompt（運用者が編集しやすい部分）
+以下の応対履歴（turns）から、QAペアを作成してください。
+
+【目的】
+- 応対履歴を「QAデータ」として再利用し、Agentが回答できる範囲を拡大する。
+- 将来RAGでも使えるよう、segments（話題ごとの整形単位）も同時に出力する。
+
+【出力要件】
+- 可能な限り「FAQ/簡易トラブルシュート」に適したQAを作る。
+- ただし、手順が長い/条件分岐が多い場合は answer_style="procedure" にし、手順を箇条書きで短くまとめる。
+- 会議の文字起こしの場合、決定事項・依頼事項・結論をQA化してよい（answer_style="meeting_decision"）。
+- 各QAに evidence_turn_ids と evidence_quotes を必須で付ける。
+
+【質問文の正規化ルール】
+- 質問はユーザー視点で自然な日本語にする（例：「〜できません」「〜の方法は？」）。
+- 製品名/機能名/エラーコードがあれば含める。
+- 同じ意味の質問が複数回出る場合は1つに統合してよい（ただし根拠turnは複数引用可）。
+
+【タグ付け】
+- tags は2〜5個。
+- category は運用で集計しやすい大分類（例：ログイン/課金/設定/障害/会議運用/その他）。
+
+【入力データ】
+{{CONVERSATION_JSON}}
+
+3) 使い分け用：プロンプト「2種類」（精度が上がる）
+
+実運用では、同じ会話でも目的が2つあるので、切り替えられると強いです。
+
+A. “抽出重視”プロンプト（サポート履歴向け・幻覚を最小化）
+
+目的：実際に出た質問と実際の解決を“忠実にQA化”
+
+追加指示（User側に追記）
+
+【抽出モード】
+- 顧客の発話から「困りごと/質問」を抽出し、エージェントが提示した解決策のみで回答を作る。
+- 解決が確認できない場合はQAを作らず、skipped_items に理由を記録する（no_clear_resolution）。
+
+B. “生成重視”プロンプト（会議・長文ログ向け）
+
+目的：明示的な質問がなくても「想定される質問」を生成してQA化
+
+追加指示（User側に追記）
+
+【生成モード】
+- 明示的な質問がない場合でも、会話/会議で共有された重要事項を「想定質問」に変換してQA化してよい。
+- ただし、必ず根拠turn_idを付け、推測で補完しない。
+
+4) “前処理込み”を強化するオプション（おすすめパラメータ）
+
+運用画面でプロンプトを触らせるなら、ここは「スイッチ」にすると事故りにくいです。
+
+REMOVE_FILLERS: true/false（えー、あのー等削除）
+
+REMOVE_SIGNATURE_TEMPLATES: true/false（署名・定型文除去）
+
+TOPIC_SEGMENTATION: off / coarse / strict
+
+PII_MASK_LEVEL: basic / strict
+
+MAX_QA_PER_CONVERSATION: 3〜10
+
+ANSWER_STYLE_PREFERENCE: faq / procedure 優先度
+
+User Promptにこう足すだけでOKです：
+
+【前処理パラメータ】
+REMOVE_FILLERS={{...}}
+TOPIC_SEGMENTATION={{...}}
+PII_MASK_LEVEL={{...}}
+MAX_QA_PER_CONVERSATION={{...}}
+
+5) すぐ試せる「最小サンプル」
+
+まずは「抽出重視（A）」で、1会話から最大3QAくらいに絞って回すのが失敗しにくいです。
