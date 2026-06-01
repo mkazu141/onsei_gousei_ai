@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>対話評価画面 プロトタイプ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --color-primary: #4f46e5;
+    --color-primary-hover: #4338ca;
+    --color-bg: #f5f6fa;
+    --color-card: #ffffff;
+    --color-border: #e5e7eb;
+    --color-text: #1f2937;
+    --color-text-muted: #6b7280;
+    --color-sidebar: #1e293b;
+    --color-sidebar-text: #cbd5e1;
+    --color-sidebar-active: #4f46e5;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+    --color-info: #3b82f6;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
+    --radius: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Layout */
+  .app { display: flex; height: 100vh; overflow: hidden; }
+  .sidebar {
+    width: 240px; background: var(--color-sidebar); color: var(--color-sidebar-text);
+    display: flex; flex-direction: column; flex-shrink: 0;
+  }
+  .sidebar__brand {
+    padding: 20px 18px; font-size: 16px; font-weight: 700; color: white;
+    border-bottom: 1px solid #334155;
+  }
+  .sidebar__brand small { display: block; font-size: 11px; color: #94a3b8; font-weight: 400; margin-top: 4px; }
+  .sidebar__nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+  .sidebar__section { padding: 10px 18px 4px; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 18px; cursor: pointer; font-size: 13.5px;
+    border-left: 3px solid transparent; transition: all 0.15s;
+  }
+  .nav-item:hover { background: #334155; color: white; }
+  .nav-item.is-active { background: #334155; color: white; border-left-color: var(--color-sidebar-active); }
+  .nav-item .icon { width: 16px; text-align: center; opacity: 0.8; }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .topbar {
+    height: 56px; background: white; border-bottom: 1px solid var(--color-border);
+    display: flex; align-items: center; padding: 0 24px; gap: 16px;
+  }
+  .topbar__title { font-weight: 600; font-size: 16px; flex: 1; }
+  .topbar__filters { display: flex; gap: 8px; }
+  .topbar__user {
+    display: flex; align-items: center; gap: 8px; padding: 4px 10px;
+    border-radius: 20px; background: var(--color-bg); font-size: 13px;
+  }
+  .topbar__user-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--color-primary); color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 12px;
+  }
+
+  .content { flex: 1; overflow-y: auto; padding: 24px; }
+
+  /* Common components */
+  .select, .input, .btn {
+    height: 32px; padding: 0 12px; border: 1px solid var(--color-border);
+    border-radius: 6px; background: white; font-size: 13px; color: var(--color-text);
+    font-family: inherit;
+  }
+  .input { min-width: 200px; }
+  .btn {
+    cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn:hover { background: var(--color-bg); }
+  .btn--primary { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+  .btn--primary:hover { background: var(--color-primary-hover); }
+  .btn--ghost { background: transparent; border-color: transparent; color: var(--color-text-muted); }
+  .btn--sm { height: 26px; padding: 0 8px; font-size: 12px; }
+
+  .card {
+    background: var(--color-card); border-radius: var(--radius); border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-sm); padding: 20px;
+  }
+  .card__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .card__title { font-size: 14px; font-weight: 600; color: var(--color-text); }
+  .card__subtitle { font-size: 12px; color: var(--color-text-muted); margin-top: 2px; }
+
+  /* KPI Cards */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .kpi-card { background: white; border-radius: var(--radius); padding: 16px; border: 1px solid var(--color-border); box-shadow: var(--shadow-sm); }
+  .kpi-card__label { font-size: 12px; color: var(--color-text-muted); margin-bottom: 8px; }
+  .kpi-card__value { font-size: 28px; font-weight: 700; color: var(--color-text); }
+  .kpi-card__delta { font-size: 12px; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+  .kpi-card__delta.is-up { color: var(--color-success); }
+  .kpi-card__delta.is-down { color: var(--color-danger); }
+  .kpi-card__delta.is-flat { color: var(--color-text-muted); }
+
+  /* Grid */
+  .grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+  .grid-2-eq { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* Alerts */
+  .alert-list { display: flex; flex-direction: column; gap: 8px; }
+  .alert {
+    display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px;
+    border-radius: 6px; border-left: 3px solid;
+  }
+  .alert--high { background: #fef2f2; border-left-color: var(--color-danger); }
+  .alert--med { background: #fffbeb; border-left-color: var(--color-warning); }
+  .alert--low { background: #eff6ff; border-left-color: var(--color-info); }
+  .alert__icon { font-size: 16px; }
+  .alert__body { flex: 1; font-size: 13px; }
+  .alert__time { font-size: 11px; color: var(--color-text-muted); margin-top: 2px; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 600;
+    color: var(--color-text-muted); border-bottom: 1px solid var(--color-border);
+    background: #fafafa; user-select: none;
+  }
+  tbody td { padding: 12px; border-bottom: 1px solid var(--color-border); }
+  tbody tr { cursor: pointer; transition: background 0.1s; }
+  tbody tr:hover { background: #fafafa; }
+  tbody tr:last-child td { border-bottom: none; }
+
+  /* Badges */
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: 11px; font-weight: 500;
+  }
+  .badge--ok { background: #d1fae5; color: #065f46; }
+  .badge--warn { background: #fef3c7; color: #92400e; }
+  .badge--ng { background: #fee2e2; color: #991b1b; }
+  .badge--info { background: #dbeafe; color: #1e40af; }
+  .badge--gray { background: #f3f4f6; color: #4b5563; }
+
+  /* Filter bar */
+  .filter-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-bar__spacer { flex: 1; }
+
+  /* Conversation Detail */
+  .convo-detail-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+  .timeline { display: flex; flex-direction: column; gap: 12px; }
+  .turn { display: flex; gap: 10px; }
+  .turn__avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 12px; flex-shrink: 0;
+  }
+  .turn--user .turn__avatar { background: #dbeafe; color: #1e40af; }
+  .turn--bot .turn__avatar { background: #ede9fe; color: #5b21b6; }
+  .turn__content { flex: 1; }
+  .turn__head { font-size: 12px; color: var(--color-text-muted); margin-bottom: 4px; }
+  .turn__bubble {
+    background: #f9fafb; border: 1px solid var(--color-border);
+    padding: 10px 12px; border-radius: 8px; font-size: 13.5px;
+  }
+  .turn--user .turn__bubble { background: #eff6ff; border-color: #bfdbfe; }
+  .trace-block {
+    margin-top: 8px; margin-left: 0; padding: 8px 12px;
+    background: #f9fafb; border-left: 2px solid var(--color-border);
+    font-size: 12px; color: var(--color-text-muted); border-radius: 0 6px 6px 0;
+  }
+  .trace-block strong { color: var(--color-text); }
+  .faq-candidate {
+    display: inline-block; margin-right: 6px; padding: 2px 8px;
+    background: white; border: 1px solid var(--color-border); border-radius: 4px;
+    font-size: 11px;
+  }
+
+  /* Score panel */
+  .score-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0; border-bottom: 1px solid var(--color-border);
+  }
+  .score-row:last-child { border-bottom: none; }
+  .score-row__label { font-size: 13px; color: var(--color-text); }
+  .score-row__value { display: flex; align-items: center; gap: 8px; }
+  .score-bar {
+    width: 60px; height: 6px; background: #f3f4f6; border-radius: 3px; overflow: hidden;
+  }
+  .score-bar__fill { height: 100%; background: var(--color-success); }
+  .score-bar__fill.is-warn { background: var(--color-warning); }
+  .score-bar__fill.is-bad { background: var(--color-danger); }
+  .score-num { font-weight: 600; font-family: "Menlo", monospace; font-size: 12px; min-width: 36px; text-align: right; }
+
+  /* Tabs */
+  .tabs {
+    display: flex; gap: 0; border-bottom: 1px solid var(--color-border); margin-bottom: 16px;
+  }
+  .tab {
+    padding: 10px 16px; cursor: pointer; font-size: 13px; color: var(--color-text-muted);
+    border-bottom: 2px solid transparent;
+  }
+  .tab.is-active { color: var(--color-primary); border-bottom-color: var(--color-primary); font-weight: 600; }
+
+  /* Detail meta */
+  .meta-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;
+    padding: 12px; background: #f9fafb; border-radius: 6px; margin-bottom: 16px;
+  }
+  .meta-item { font-size: 12px; }
+  .meta-item__label { color: var(--color-text-muted); margin-bottom: 2px; }
+  .meta-item__value { color: var(--color-text); font-weight: 500; }
+
+  /* Chart container */
+  .chart-container { position: relative; height: 280px; }
+
+  /* Pagination */
+  .pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding: 0 4px; font-size: 12px; color: var(--color-text-muted); }
+  .pagination__pages { display: flex; gap: 4px; }
+  .page-btn { padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 4px; background: white; cursor: pointer; }
+  .page-btn.is-active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+
+  /* Hide screen util */
+  .screen { display: none; }
+  .screen.is-active { display: block; }
+
+  /* Action bar */
+  .action-bar { display: flex; gap: 8px; padding: 12px; background: #f9fafb; border-radius: 6px; margin-top: 16px; }
+
+  /* Empty state */
+  .empty {
+    padding: 40px; text-align: center; color: var(--color-text-muted); font-size: 13px;
+  }
+
+  /* Improvement action cards */
+  .imp-list { display: flex; flex-direction: column; gap: 10px; }
+  .imp-item {
+    display: grid; grid-template-columns: 44px 1fr auto; gap: 14px; align-items: center;
+    padding: 12px 14px; border: 1px solid var(--color-border); border-radius: 8px; background: white;
+    transition: all 0.15s;
+  }
+  .imp-item:hover { border-color: var(--color-primary); box-shadow: 0 2px 8px rgba(79,70,229,0.08); }
+  .imp-icon {
+    width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 18px; font-weight: 700;
+  }
+  .imp-icon--faq-add { background: #dbeafe; color: #1e40af; }
+  .imp-icon--faq-fix { background: #fef3c7; color: #92400e; }
+  .imp-icon--prompt { background: #ede9fe; color: #5b21b6; }
+  .imp-icon--retriever { background: #ccfbf1; color: #115e59; }
+  .imp-icon--judge { background: #fce7f3; color: #9d174d; }
+  .imp-signal {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500;
+    padding: 2px 8px; border-radius: 10px; margin-bottom: 4px;
+  }
+  .imp-signal .imp-sig-dot { font-weight: 700; }
+  .imp-sig--high { background: #fef2f2; color: var(--color-danger); }
+  .imp-sig--med { background: #fffbeb; color: var(--color-warning); }
+  .imp-sig--low { background: #eff6ff; color: var(--color-info); }
+  .imp-main__title { font-size: 14px; font-weight: 600; color: var(--color-text); margin-bottom: 2px; }
+  .imp-main__meta { font-size: 12px; color: var(--color-text-muted); display: flex; gap: 12px; flex-wrap: wrap; }
+  .imp-main__meta .impact { color: var(--color-danger); font-weight: 600; }
+  .imp-main__cat { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 10px; background: #f3f4f6; color: #4b5563; margin-right: 6px; font-weight: 600; }
+  .imp-actions { display: flex; gap: 6px; align-items: center; }
+
+  /* Quick test card */
+  .quick-test-card {
+    display: flex; align-items: center; gap: 16px; padding: 18px; border-radius: 10px;
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); color: white;
+  }
+  .quick-test-card__icon { font-size: 32px; }
+  .quick-test-card__main { flex: 1; }
+  .quick-test-card__title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .quick-test-card__sub { font-size: 12px; opacity: 0.85; }
+  .quick-test-card__btn {
+    background: white; color: var(--color-primary); padding: 10px 18px; border-radius: 6px;
+    font-weight: 700; cursor: pointer; border: none; font-size: 13px;
+  }
+
+  /* Improvement detail panel */
+  .imp-detail { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+  .imp-detail__main { padding: 18px; background: white; border: 1px solid var(--color-border); border-radius: 8px; }
+  .imp-detail__side { padding: 18px; background: #f9fafb; border: 1px solid var(--color-border); border-radius: 8px; }
+  .imp-suggestion-box {
+    background: #f0fdf4; border-left: 3px solid var(--color-success);
+    padding: 12px 14px; border-radius: 0 6px 6px 0; margin-top: 10px;
+  }
+  .imp-evidence { font-size: 12px; padding: 8px 12px; background: #f9fafb; border-left: 2px solid var(--color-border); margin-top: 8px; color: var(--color-text-muted); }
+
+  /* Scroll style */
+  .content::-webkit-scrollbar, .sidebar__nav::-webkit-scrollbar { width: 8px; }
+  .content::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+  .content::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar__brand">
+      対話評価機能
+      <small>対話品質の見える化と改善</small>
+    </div>
+    <nav class="sidebar__nav">
+      <div class="sidebar__section">運用</div>
+      <div class="nav-item is-active" data-screen="dashboard"><span class="icon">▣</span> モニタリング＆改善</div>
+      <div class="nav-item" data-screen="conversations"><span class="icon">≡</span> 会話一覧</div>
+
+      <div class="sidebar__section">評価</div>
+      <div class="nav-item" data-screen="jobs"><span class="icon">▶</span> 評価テスト実行</div>
+      <div class="nav-item" data-screen="test-config"><span class="icon">⚙</span> テスト設定</div>
+
+      <div class="sidebar__section">設定</div>
+      <div class="nav-item" data-screen="reports"><span class="icon">⤓</span> レポート出力</div>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar__title" id="topbarTitle">モニタリング＆改善</div>
+      <div class="topbar__filters">
+        <select class="select">
+          <option>過去7日</option>
+          <option selected>過去30日</option>
+          <option>過去90日</option>
+          <option>カスタム</option>
+        </select>
+        <select class="select">
+          <option>全チャネル</option>
+          <option>Web</option>
+          <option>LINE</option>
+          <option>App</option>
+        </select>
+      </div>
+      <div class="topbar__user">
+        <div class="topbar__user-avatar">M</div>
+        <span>murai（管理者）</span>
+      </div>
+    </header>
+
+    <div class="content" id="content">
+
+      <!-- Dashboard (FE-01) -->
+      <section class="screen is-active" id="screen-dashboard">
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="kpi-card__label">自己解決率</div><div class="kpi-card__value">78.2%</div><div class="kpi-card__delta is-up">▲ 2.1pt（前週比）</div></div>
+          <div class="kpi-card"><div class="kpi-card__label">問題解決率</div><div class="kpi-card__value">64.5%</div><div class="kpi-card__delta is-down">▼ 0.8pt（前週比）</div></div>
+          <div class="kpi-card"><div class="kpi-card__label">顧客満足度</div><div class="kpi-card__value">4.2 / 5</div><div class="kpi-card__delta is-flat">→ 横ばい</div></div>
+          <div class="kpi-card"><div class="kpi-card__label">回答不能率</div><div class="kpi-card__value">6.1%</div><div class="kpi-card__delta is-up">▲ 0.4pt（前週比）</div></div>
+          <div class="kpi-card"><div class="kpi-card__label">有人回避率</div><div class="kpi-card__value">71.8%</div><div class="kpi-card__delta is-up">▲ 1.5pt（前週比）</div></div>
+          <div class="kpi-card"><div class="kpi-card__label">平均対話往復数</div><div class="kpi-card__value">3.4</div><div class="kpi-card__delta is-up">▼ 0.2（改善）</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card__header">
+            <div>
+              <div class="card__title">主要指標の推移</div>
+              <div class="card__subtitle">過去30日のトレンド</div>
+            </div>
+            <select class="select btn--sm">
+              <option>自己解決率</option>
+              <option>問題解決率</option>
+              <option>顧客満足度</option>
+              <option>回答不能率</option>
+            </select>
+          </div>
+          <div class="chart-container"><canvas id="kpiChart"></canvas></div>
+        </div>
+
+        <!-- Supporting context charts -->
+        <div style="margin-top: 16px;">
+          <div class="grid-2-eq">
+            <div class="card">
+              <div class="card__header">
+                <div>
+                  <div class="card__title">対話結末の内訳</div>
+                  <div class="card__subtitle">直近30日の会話がどう終わったか</div>
+                </div>
+              </div>
+              <div class="chart-container" style="height: 220px;"><canvas id="outcomeChart"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card__header">
+                <div>
+                  <div class="card__title">FAQ別 参照数 Top10</div>
+                  <div class="card__subtitle">どのFAQがよく使われているか</div>
+                </div>
+              </div>
+              <div class="chart-container" style="height: 220px;"><canvas id="faqChart"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Improvement Action Center integrated into dashboard -->
+        <div style="margin-top: 16px;">
+          <div class="card">
+            <div class="card__header">
+              <div>
+                <div class="card__title">改善アクション</div>
+                <div class="card__subtitle">検知された問題と推奨される改善案を統合表示 — クリックでワンクリック適用</div>
+              </div>
+              <div style="display:flex; gap: 8px;">
+                <button class="btn">CSV出力</button>
+                <button class="btn btn--primary">一括承認</button>
+              </div>
+            </div>
+
+            <!-- Category summary tiles -->
+            <div class="kpi-grid" style="margin-bottom: 16px;">
+              <div class="kpi-card"><div class="kpi-card__label">新規FAQの追加候補</div><div class="kpi-card__value">3</div><div class="kpi-card__delta is-down">影響: 約 173件 / 月</div></div>
+              <div class="kpi-card"><div class="kpi-card__label">既存FAQの改訂候補</div><div class="kpi-card__value">2</div><div class="kpi-card__delta is-down">影響: 約 180件 / 月</div></div>
+              <div class="kpi-card"><div class="kpi-card__label">プロンプト調整提案</div><div class="kpi-card__value">2</div><div class="kpi-card__delta is-down">影響: 約 45件 / 月</div></div>
+              <div class="kpi-card"><div class="kpi-card__label">検索チューニング</div><div class="kpi-card__value">1</div><div class="kpi-card__delta is-down">影響: 約 53件 / 月</div></div>
+            </div>
+
+            <!-- Filter bar -->
+            <div class="filter-bar">
+              <select class="select"><option>すべてのカテゴリ</option><option>FAQ追加</option><option>FAQ改訂</option><option>プロンプト調整</option><option>検索チューニング</option></select>
+              <select class="select"><option>影響度: すべて</option><option>大（100件以上）</option><option>中（30〜99件）</option><option>小（30件未満）</option></select>
+              <select class="select"><option>状態: すべて</option><option>未対応</option><option>レビュー中</option><option>承認済</option><option>却下</option></select>
+              <div class="filter-bar__spacer"></div>
+              <span style="font-size: 12px; color: var(--color-text-muted);">8件の改善提案（要対応 8件）</span>
+            </div>
+
+            <!-- Full improvement list -->
+            <div class="imp-list" id="improvementListDash"></div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Conversation List (FE-02) -->
+      <section class="screen" id="screen-conversations">
+        <div class="card">
+          <div class="filter-bar">
+            <input class="input" placeholder="検索: ユーザーID / 会話ID / FAQ ID / キーワード">
+            <select class="select"><option>期間: 過去30日</option><option>本日</option><option>過去7日</option><option>過去30日</option><option>過去90日</option><option>カスタム…</option></select>
+            <input type="date" class="input" style="min-width:140px;" value="2026-03-27">
+            <span style="font-size:12px; color: var(--color-text-muted);">〜</span>
+            <input type="date" class="input" style="min-width:140px;" value="2026-04-26">
+            <select class="select"><option>すべての結末</option><option>解決</option><option>有人転送</option><option>離脱</option></select>
+            <select class="select"><option>すべての満足度</option><option>高（4〜5）</option><option>中（3）</option><option>低（1〜2）</option></select>
+            <select class="select"><option>すべてのFAQ分野</option><option>配送</option><option>返品</option><option>支払い</option><option>会員情報</option></select>
+            <div class="filter-bar__spacer"></div>
+            <button class="btn">CSV出力</button>
+            <button class="btn btn--primary">一括で評価データに追加</button>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th><input type="checkbox"></th>
+                <th>会話ID</th>
+                <th>開始日時</th>
+                <th>ユーザー</th>
+                <th>最終FAQ</th>
+                <th>結末</th>
+                <th>満足度</th>
+                <th>総合スコア</th>
+              </tr>
+            </thead>
+            <tbody id="convoTableBody"></tbody>
+          </table>
+
+          <div class="pagination">
+            <span>1〜20件 / 全 1,283件</span>
+            <div class="pagination__pages">
+              <button class="page-btn">‹</button>
+              <button class="page-btn is-active">1</button>
+              <button class="page-btn">2</button>
+              <button class="page-btn">3</button>
+              <button class="page-btn">4</button>
+              <button class="page-btn">5</button>
+              <button class="page-btn">›</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Conversation Detail (FE-03) -->
+      <section class="screen" id="screen-detail">
+        <div style="margin-bottom: 12px;">
+          <button class="btn btn--ghost" data-screen="conversations">← 会話一覧へ戻る</button>
+        </div>
+
+        <div class="card">
+          <div class="card__header">
+            <div>
+              <div class="card__title">会話ID: c-20260426-0042</div>
+              <div class="card__subtitle">ユーザー: u-1903（既存会員）</div>
+            </div>
+            <span class="badge badge--ng">未解決終話の候補</span>
+          </div>
+
+          <div class="meta-grid">
+            <div class="meta-item"><div class="meta-item__label">開始</div><div class="meta-item__value">2026/04/26 10:23</div></div>
+            <div class="meta-item"><div class="meta-item__label">終了</div><div class="meta-item__value">2026/04/26 10:31</div></div>
+            <div class="meta-item"><div class="meta-item__label">往復数</div><div class="meta-item__value">5</div></div>
+            <div class="meta-item"><div class="meta-item__label">満足度</div><div class="meta-item__value">3 / 5</div></div>
+            <div class="meta-item"><div class="meta-item__label">最終FAQ</div><div class="meta-item__value">FAQ-203 配送日変更</div></div>
+            <div class="meta-item"><div class="meta-item__label">自己解決判定</div><div class="meta-item__value">✔（要確認）</div></div>
+            <div class="meta-item"><div class="meta-item__label">解決状態</div><div class="meta-item__value" style="color:#ef4444;">未解決</div></div>
+            <div class="meta-item"><div class="meta-item__label">チャネル</div><div class="meta-item__value">Web</div></div>
+          </div>
+
+          <div class="convo-detail-grid">
+            <!-- Timeline -->
+            <div>
+              <h4 style="margin-bottom: 12px; font-size: 13px; color: var(--color-text-muted);">タイムライン</h4>
+              <div class="timeline">
+                <div class="turn turn--user">
+                  <div class="turn__avatar">U</div>
+                  <div class="turn__content">
+                    <div class="turn__head">T1 · ユーザー · 10:23:14</div>
+                    <div class="turn__bubble">配送日変更したい</div>
+                  </div>
+                </div>
+                <div class="trace-block">
+                  <strong>FAQ検索</strong> 候補上位3件（ベクトル＋キーワード併用検索, 240ms）：
+                  <span class="faq-candidate">FAQ-203 (0.82)</span>
+                  <span class="faq-candidate">FAQ-198 (0.71)</span>
+                  <span class="faq-candidate">FAQ-211 (0.58)</span>
+                </div>
+                <div class="turn turn--bot">
+                  <div class="turn__avatar">B</div>
+                  <div class="turn__content">
+                    <div class="turn__head">T1 · ボット · 10:23:16</div>
+                    <div class="turn__bubble">配送先住所のご変更も併せてご希望ですか？</div>
+                  </div>
+                </div>
+                <div class="trace-block">
+                  <strong>AI応答生成</strong> gpt-x · 1.2秒 · 312トークン · 動作: 意図が曖昧なため逆質問
+                </div>
+
+                <div class="turn turn--user">
+                  <div class="turn__avatar">U</div>
+                  <div class="turn__content">
+                    <div class="turn__head">T2 · ユーザー · 10:24:02</div>
+                    <div class="turn__bubble">住所はそのままで、日付だけ変えたい</div>
+                  </div>
+                </div>
+                <div class="trace-block">
+                  <strong>FAQ検索</strong> 絞り込み後 → FAQ-203（0.94）に確定
+                </div>
+                <div class="turn turn--bot">
+                  <div class="turn__avatar">B</div>
+                  <div class="turn__content">
+                    <div class="turn__head">T2 · ボット · 10:24:05</div>
+                    <div class="turn__bubble">配送日変更の手続きはマイページの「ご注文一覧」から行えます。発送24時間前まで変更可能です。（参照: FAQ-203 v3.1）</div>
+                  </div>
+                </div>
+
+                <div class="turn turn--user">
+                  <div class="turn__avatar">U</div>
+                  <div class="turn__content">
+                    <div class="turn__head">T3 · ユーザー · 10:25:30</div>
+                    <div class="turn__bubble">わかりました</div>
+                  </div>
+                </div>
+                <div class="turn turn--bot">
+                  <div class="turn__avatar">B</div>
+                  <div class="turn__content">
+                    <div class="turn__head">T3 · ボット · 10:25:32</div>
+                    <div class="turn__bubble">他にご質問はありますか？</div>
+                  </div>
+                </div>
+
+                <div class="turn turn--user">
+                  <div class="turn__avatar">U</div>
+                  <div class="turn__content">
+                    <div class="turn__head">T4 · ユーザー · 10:31:00（タイムアウト）</div>
+                    <div class="turn__bubble" style="opacity:0.6; font-style: italic;">（応答なし → セッション終了）</div>
+                  </div>
+                </div>
+                <div class="trace-block">
+                  <strong>会話終了</strong> 理由: ユーザー応答なし / 自己解決判定: ✔ / 実際の解決: ✘
+                </div>
+              </div>
+            </div>
+
+            <!-- Score panel -->
+            <div>
+              <h4 style="margin-bottom: 12px; font-size: 13px; color: var(--color-text-muted);">評価スコア</h4>
+
+              <div class="card" style="padding: 16px;">
+                <div style="font-size: 12px; color: var(--color-text-muted); margin-bottom: 8px;">1ターン単位の評価</div>
+                <div class="score-row"><span class="score-row__label">回答忠実度（FAQ準拠）</span><span class="score-row__value"><span class="score-bar"><span class="score-bar__fill" style="width:95%;"></span></span><span class="score-num">0.95</span></span></div>
+                <div class="score-row"><span class="score-row__label">回答関連性</span><span class="score-row__value"><span class="score-bar"><span class="score-bar__fill" style="width:88%;"></span></span><span class="score-num">0.88</span></span></div>
+                <div class="score-row"><span class="score-row__label">参照FAQの適合度</span><span class="score-row__value"><span class="score-bar"><span class="score-bar__fill" style="width:82%;"></span></span><span class="score-num">0.82</span></span></div>
+              </div>
+
+              <div class="card" style="padding: 16px; margin-top: 12px;">
+                <div style="font-size: 12px; color: var(--color-text-muted); margin-bottom: 8px;">対話全体の評価</div>
+                <div class="score-row"><span class="score-row__label">対話完結度</span><span class="score-row__value"><span class="score-bar"><span class="score-bar__fill is-warn" style="width:55%;"></span></span><span class="score-num">0.55</span></span></div>
+                <div class="score-row"><span class="score-row__label">文脈保持度</span><span class="score-row__value"><span class="score-bar"><span class="score-bar__fill" style="width:92%;"></span></span><span class="score-num">0.92</span></span></div>
+                <div class="score-row"><span class="score-row__label">絞り込み効率</span><span class="score-row__value"><span class="score-bar"><span class="score-bar__fill" style="width:70%;"></span></span><span class="score-num">0.70</span></span></div>
+              </div>
+
+              <div class="card" style="padding: 16px; margin-top: 12px;">
+                <div style="font-size: 12px; color: var(--color-text-muted); margin-bottom: 8px;">AIの動作経路の評価</div>
+                <div class="score-row"><span class="score-row__label">ツール選択の正確性</span><span class="score-row__value"><span class="score-bar"><span class="score-bar__fill" style="width:100%;"></span></span><span class="score-num">1.00</span></span></div>
+                <div class="score-row"><span class="score-row__label">想定経路との一致度</span><span class="score-row__value"><span class="score-bar"><span class="score-bar__fill" style="width:90%;"></span></span><span class="score-num">0.90</span></span></div>
+              </div>
+
+              <div class="card" style="padding: 16px; margin-top: 12px;">
+                <div style="font-size: 12px; color: var(--color-text-muted); margin-bottom: 8px;">ユーザー評価</div>
+                <div style="font-size: 14px;">👎 役に立たなかった</div>
+                <div style="font-size: 13px; color: var(--color-text-muted); margin-top: 8px; font-style: italic;">「再配達できなかった」</div>
+              </div>
+
+              <div class="card" style="padding: 16px; margin-top: 12px; border-left: 3px solid var(--color-primary);">
+                <div style="font-size: 12px; color: var(--color-primary); font-weight: 600; margin-bottom: 8px;">✦ この会話から検出された改善ポイント</div>
+                <div style="font-size: 12.5px; line-height: 1.5;">
+                  <strong>原因の推定:</strong> 終話前にユーザー満足度の確認をしていない<br>
+                  <strong>推奨アクション:</strong> プロンプトに「終話前に解決確認の1ターンを挟む」ルールを追加
+                </div>
+                <button class="btn btn--sm btn--primary" style="margin-top: 10px;" data-screen="dashboard">改善アクション一覧で対応する</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="action-bar">
+            <button class="btn btn--primary">評価データに追加</button>
+            <button class="btn">人手レビューを依頼</button>
+            <button class="btn">FAQ追加・改訂を起票</button>
+            <div class="filter-bar__spacer"></div>
+            <button class="btn btn--ghost">操作履歴を表示</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Evaluation Jobs (FE-04) -->
+      <section class="screen" id="screen-jobs">
+        <!-- Run new test CTA card -->
+        <div class="card" style="background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); color: white; border: none;">
+          <div style="display:flex; align-items: center; gap: 20px;">
+            <div style="font-size: 36px; line-height: 1;">▶</div>
+            <div style="flex: 1;">
+              <div style="font-size: 18px; font-weight: 700; margin-bottom: 4px;">対話テストを実行</div>
+              <div style="font-size: 12.5px; opacity: 0.85;">評価データセットと評価器を選択して、対話テストをワンクリックで起動できます</div>
+            </div>
+            <div style="display:flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <div style="display:flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 10px; opacity: 0.85;">評価データセット</span>
+                <select class="select" style="background: white; color: var(--color-text); min-width: 180px;">
+                  <option>本番回帰用_v3 (124件)</option>
+                  <option>配送カテゴリ抜粋 (24件)</option>
+                  <option>難ケース集 (48件)</option>
+                  <option>個人情報・コンプラ (32件)</option>
+                </select>
+              </div>
+              <div style="display:flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 10px; opacity: 0.85;">評価器</span>
+                <select class="select" style="background: white; color: var(--color-text); min-width: 180px;">
+                  <option>標準セット（推奨）</option>
+                  <option>FAQ参照型セット</option>
+                  <option>個人情報チェック</option>
+                  <option>評価器v4</option>
+                </select>
+              </div>
+              <button style="background: white; color: var(--color-primary); padding: 10px 22px; border-radius: 6px; font-weight: 700; cursor: pointer; border: none; font-size: 14px; align-self: flex-end;">▶ テストを実行</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 16px;">
+          <div class="card__header">
+            <div>
+              <div class="card__title">過去のテスト一覧</div>
+              <div class="card__subtitle">直近に実行された評価テストの履歴 — 行のボタンから再実行できます</div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>テストID</th>
+                <th>名称</th>
+                <th>評価データセット</th>
+                <th>対象AIモデル</th>
+                <th>評価器</th>
+                <th>状態</th>
+                <th>総合スコア</th>
+                <th>実行日時</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="jobsTableBody"></tbody>
+          </table>
+        </div>
+
+        <!-- Latest test result detail -->
+        <div style="margin-top: 16px;">
+          <div class="card">
+            <div class="card__header">
+              <div>
+                <div class="card__title">最新テスト結果の詳細</div>
+                <div class="card__subtitle">test-2042 プロンプトv12 回帰テスト / 本番回帰用_v3 (124件) / 2026/04/26 02:00</div>
+              </div>
+              <div style="display:flex; gap: 8px;">
+                <button class="btn btn--sm">前回テストと比較</button>
+                <button class="btn btn--sm">CSVダウンロード</button>
+              </div>
+            </div>
+
+            <div class="kpi-grid" style="margin-bottom: 16px;">
+              <div class="kpi-card"><div class="kpi-card__label">総合スコア</div><div class="kpi-card__value">0.89</div><div class="kpi-card__delta is-up">▲ 0.01（前回比）</div></div>
+              <div class="kpi-card"><div class="kpi-card__label">合格ケース</div><div class="kpi-card__value">108<span style="font-size:14px; color:#6b7280;"> / 124</span></div><div class="kpi-card__delta is-up">合格率 87.1%</div></div>
+              <div class="kpi-card"><div class="kpi-card__label">要確認</div><div class="kpi-card__value">11</div><div class="kpi-card__delta is-flat">スコア 0.6〜0.85</div></div>
+              <div class="kpi-card"><div class="kpi-card__label">失敗ケース</div><div class="kpi-card__value">5</div><div class="kpi-card__delta is-down">スコア 0.6未満</div></div>
+            </div>
+
+            <div style="margin-top: 16px;">
+              <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="font-size: 13px; font-weight: 600; color: var(--color-text-muted);">テスト結果ケース一覧</div>
+                <span style="font-size: 11px; color: var(--color-text-muted);">タブで判定別に絞り込み</span>
+              </div>
+
+              <div class="tabs">
+                <div class="tab is-active" data-test-tab="all">全件 <span style="font-weight:400; opacity:0.75; margin-left:4px;">124</span></div>
+                <div class="tab" data-test-tab="passed">合格 <span style="font-weight:400; opacity:0.75; margin-left:4px;">108</span></div>
+                <div class="tab" data-test-tab="warning">要確認 <span style="font-weight:400; opacity:0.75; margin-left:4px;">11</span></div>
+                <div class="tab" data-test-tab="failed">失敗 <span style="font-weight:400; opacity:0.75; margin-left:4px;">5</span></div>
+              </div>
+
+              <div class="test-tab-content" id="test-tab-all">
+                <table>
+                  <thead>
+                    <tr><th>ケースID</th><th>カテゴリ</th><th>想定質問</th><th>期待FAQ</th><th>実際の挙動</th><th>スコア</th><th>判定</th></tr>
+                  </thead>
+                  <tbody id="testCasesAllBody"></tbody>
+                </table>
+                <div class="pagination">
+                  <span>1〜10件 / 全 124件を抜粋表示</span>
+                  <div class="pagination__pages">
+                    <button class="page-btn">‹</button>
+                    <button class="page-btn is-active">1</button>
+                    <button class="page-btn">2</button>
+                    <button class="page-btn">3</button>
+                    <button class="page-btn">…</button>
+                    <button class="page-btn">13</button>
+                    <button class="page-btn">›</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="test-tab-content" id="test-tab-passed" style="display:none;">
+                <table>
+                  <thead>
+                    <tr><th>ケースID</th><th>カテゴリ</th><th>想定質問</th><th>期待FAQ</th><th>実際の挙動</th><th>スコア</th><th>判定</th></tr>
+                  </thead>
+                  <tbody id="testCasesPassedBody"></tbody>
+                </table>
+                <div class="pagination">
+                  <span>1〜10件 / 全 108件を抜粋表示</span>
+                  <div class="pagination__pages">
+                    <button class="page-btn">‹</button>
+                    <button class="page-btn is-active">1</button>
+                    <button class="page-btn">2</button>
+                    <button class="page-btn">3</button>
+                    <button class="page-btn">…</button>
+                    <button class="page-btn">11</button>
+                    <button class="page-btn">›</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="test-tab-content" id="test-tab-warning" style="display:none;">
+                <table>
+                  <thead>
+                    <tr><th>ケースID</th><th>カテゴリ</th><th>想定質問</th><th>期待FAQ</th><th>実際の挙動</th><th>スコア</th><th>判定</th></tr>
+                  </thead>
+                  <tbody id="testCasesWarningBody"></tbody>
+                </table>
+              </div>
+
+              <div class="test-tab-content" id="test-tab-failed" style="display:none;">
+                <table>
+                  <thead>
+                    <tr><th>ケースID</th><th>カテゴリ</th><th>想定質問</th><th>期待FAQ</th><th>実際の挙動</th><th>スコア</th><th>判定</th></tr>
+                  </thead>
+                  <tbody id="testCasesFailedBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Test-driven improvement actions (development context, separated from production) -->
+            <div style="margin-top: 20px; padding: 16px; background: linear-gradient(180deg, #f5f3ff 0%, #ffffff 60%); border: 1px solid #ddd6fe; border-radius: 10px;">
+              <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div>
+                  <div style="font-size: 14px; font-weight: 700; color: #5b21b6;">⚙ このテスト結果からの改善提案</div>
+                  <div style="font-size: 11.5px; color: var(--color-text-muted); margin-top: 2px;">失敗ケースを分析してAIが生成した修正案 — ステージング環境で再テスト → 本番反映の順で確認できます</div>
+                </div>
+                <span style="font-size: 11px; color: var(--color-text-muted); background: white; padding: 4px 10px; border-radius: 12px; border: 1px solid var(--color-border);">テスト環境専用フロー</span>
+              </div>
+
+              <div class="imp-list">
+                <div class="imp-item">
+                  <div class="imp-icon imp-icon--faq-fix">✎</div>
+                  <div>
+                    <div class="imp-signal imp-sig--high"><span class="imp-sig-dot">⚠</span> 失敗ケース: case-087（配送カテゴリで誤マッチ）</div>
+                    <div class="imp-main__title">FAQ-203 / FAQ-198 の混同を解消するため、両FAQの冒頭に明示分岐を追加</div>
+                    <div class="imp-main__meta">
+                      <span><span class="imp-main__cat">FAQ改訂</span></span>
+                      <span>該当失敗ケース: 1件 / 関連リスク 3件</span>
+                      <span>想定工数: 小（5分）</span>
+                    </div>
+                  </div>
+                  <div class="imp-actions">
+                    <button class="btn btn--sm">修正案を表示</button>
+                    <button class="btn btn--sm btn--primary">ステージングに反映＆再テスト</button>
+                  </div>
+                </div>
+
+                <div class="imp-item">
+                  <div class="imp-icon imp-icon--retriever">🔍</div>
+                  <div>
+                    <div class="imp-signal imp-sig--high"><span class="imp-sig-dot">⚠</span> 失敗ケース: case-103（カタカナ・略称で検索失敗）</div>
+                    <div class="imp-main__title">同義語辞書に「Pt ↔ ポイント」など5件を追加</div>
+                    <div class="imp-main__meta">
+                      <span><span class="imp-main__cat">検索チューニング</span></span>
+                      <span>該当失敗ケース: 1件 / 関連要確認 2件</span>
+                      <span>想定工数: 小（5分）</span>
+                    </div>
+                  </div>
+                  <div class="imp-actions">
+                    <button class="btn btn--sm">修正案を表示</button>
+                    <button class="btn btn--sm btn--primary">ステージングに反映＆再テスト</button>
+                  </div>
+                </div>
+
+                <div class="imp-item">
+                  <div class="imp-icon imp-icon--prompt">🤖</div>
+                  <div>
+                    <div class="imp-signal imp-sig--med"><span class="imp-sig-dot">●</span> 要確認ケース: case-112（FAQ範囲外の補足を生成）</div>
+                    <div class="imp-main__title">グラウンディング指示を強化し、FAQ範囲外の補足を抑制</div>
+                    <div class="imp-main__meta">
+                      <span><span class="imp-main__cat">プロンプト調整</span></span>
+                      <span>該当ケース: 1件 / 本番影響リスク 3件</span>
+                      <span>想定工数: 中（30分・テスト含む）</span>
+                    </div>
+                  </div>
+                  <div class="imp-actions">
+                    <button class="btn btn--sm">修正案を表示</button>
+                    <button class="btn btn--sm btn--primary">レビュー依頼</button>
+                  </div>
+                </div>
+
+                <div class="imp-item">
+                  <div class="imp-icon imp-icon--faq-add">＋</div>
+                  <div>
+                    <div class="imp-signal imp-sig--high"><span class="imp-sig-dot">⚠</span> 失敗ケース: case-066（FAQ-810不在で有人転送）</div>
+                    <div class="imp-main__title">アプリログイン失敗時の対処FAQを新規作成</div>
+                    <div class="imp-main__meta">
+                      <span><span class="imp-main__cat">FAQ追加</span></span>
+                      <span>該当失敗ケース: 1件</span>
+                      <span>想定工数: 小（10分）</span>
+                    </div>
+                  </div>
+                  <div class="imp-actions">
+                    <button class="btn btn--sm">修正案を表示</button>
+                    <button class="btn btn--sm btn--primary">FAQ管理者へ起票</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Test improvement flow guide -->
+              <div style="margin-top: 14px; padding: 10px 12px; background: white; border-radius: 6px; font-size: 11.5px; color: var(--color-text-muted); display: flex; align-items: center; gap: 6px;">
+                <span style="font-weight: 600; color: #5b21b6;">フロー:</span>
+                <span>① 修正案を表示で内容確認</span>
+                <span>→</span>
+                <span>② ステージングに反映して再テスト実行</span>
+                <span>→</span>
+                <span>③ スコア改善を確認後、本番リリース承認</span>
+                <span style="margin-left: auto; padding: 2px 8px; background: #f3f4f6; border-radius: 10px;">本番ダッシュボード・改善センターは経由しません</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Score history chart -->
+        <div style="margin-top: 16px;">
+          <div class="card">
+            <div class="card__header">
+              <div class="card__title">直近の評価テスト総合スコア推移</div>
+            </div>
+            <div class="chart-container"><canvas id="jobChart"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Test Configuration (merged FE-05 + FE-06) -->
+      <section class="screen" id="screen-test-config">
+        <div class="card">
+          <div class="card__header">
+            <div>
+              <div class="card__title">テスト設定</div>
+              <div class="card__subtitle">テスト実行に使う「評価データセット」と「AI評価器」を管理</div>
+            </div>
+          </div>
+
+          <div class="tabs">
+            <div class="tab is-active" data-config-tab="dataset">評価データセット <span style="font-weight:400; opacity:0.75; margin-left:4px;">4</span></div>
+            <div class="tab" data-config-tab="judge">AI評価器 <span style="font-weight:400; opacity:0.75; margin-left:4px;">5</span></div>
+          </div>
+
+          <!-- Dataset tab -->
+          <div class="config-tab-content" id="config-tab-dataset">
+            <!-- Action bar with create button -->
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <div style="font-size: 13px; color: var(--color-text-muted);">登録済みデータセット 4件</div>
+              <button class="btn btn--primary" onclick="toggleForm('datasetForm')">＋ 新規データセット作成 ／ ケース追加</button>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>データセット名</th>
+                  <th>件数</th>
+                  <th>最新の総合スコア</th>
+                  <th>更新日</th>
+                  <th>版数</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="goldensetTableBody"></tbody>
+            </table>
+
+            <!-- Create/add form (hidden by default, shown via button click) -->
+            <div id="datasetForm" style="display:none; margin-top: 20px; border: 1px solid #c4b5fd; border-radius: 8px; background: #faf5ff;">
+              <div style="display:flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #c4b5fd;">
+                <div style="font-weight: 700; color: #5b21b6;">新規データセット作成 ／ ケース追加</div>
+                <button class="btn btn--ghost btn--sm" onclick="toggleForm('datasetForm')" style="font-size: 16px;">✕</button>
+              </div>
+              <div style="padding: 16px;">
+                <!-- Mode selection -->
+                <div style="margin-bottom: 14px; padding: 10px; background: #f9fafb; border-radius: 6px;">
+                  <label style="margin-right: 16px; font-size: 13px;"><input type="radio" name="dsMode" checked> 新規データセットを作成</label>
+                  <label style="font-size: 13px;"><input type="radio" name="dsMode"> 既存データセットにケースを追加</label>
+                </div>
+
+                <!-- Dataset target -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px;">
+                  <div>
+                    <label style="font-size: 12px; color: var(--color-text-muted); display: block; margin-bottom: 4px;">データセット名（新規）</label>
+                    <input class="input" style="width: 100%;" placeholder="例: 本番回帰用_v4">
+                  </div>
+                  <div>
+                    <label style="font-size: 12px; color: var(--color-text-muted); display: block; margin-bottom: 4px;">追加先（既存）</label>
+                    <select class="select" style="width: 100%;" disabled>
+                      <option>本番回帰用_v3</option>
+                      <option>配送カテゴリ抜粋</option>
+                      <option>難ケース集</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Input method tabs -->
+                <div style="border: 1px solid var(--color-border); border-radius: 6px; overflow: hidden;">
+                  <div style="display:flex; background: #f9fafb; border-bottom: 1px solid var(--color-border);">
+                    <div style="padding: 10px 16px; font-size: 13px; font-weight: 600; color: var(--color-primary); border-bottom: 2px solid var(--color-primary); background: white;">📋 一括入力（複数件）</div>
+                    <div style="padding: 10px 16px; font-size: 13px; color: var(--color-text-muted); cursor: pointer;">✎ 個別入力（1件ずつ）</div>
+                  </div>
+
+                  <!-- Bulk import mode (default visible) -->
+                  <div style="padding: 14px;">
+                    <div style="display:flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+                      <button class="btn">📁 CSV / JSON ファイルから取り込み</button>
+                      <span style="font-size: 11.5px; color: var(--color-text-muted);">または、下のテキストエリアにペースト</span>
+                    </div>
+                    <div style="font-size: 11.5px; color: var(--color-text-muted); margin-bottom: 4px;">形式: 想定質問,期待FAQ,想定挙動（1行に1件、カンマ区切り）</div>
+                    <textarea class="input" style="width: 100%; height: 180px; padding: 10px; font-family: 'Consolas', monospace; font-size: 12px;" placeholder="想定質問,期待FAQ ID,想定される正しい挙動
+配送日を変更したい,FAQ-203,マイページから変更可能を案内
+キャンセル料はいくらですか,FAQ-145,発送前は無料を案内
+ポイントの有効期限を教えて,FAQ-088,獲得日から1年間を案内
+領収書を再発行できますか,FAQ-301,マイページから3回まで再発行可能を案内
+...（最大10,000件まで一括追加可能）"></textarea>
+
+                    <div style="margin-top: 10px; padding: 10px 12px; background: #eff6ff; border-radius: 6px; display:flex; justify-content: space-between; align-items: center;">
+                      <span style="font-size: 12.5px; color: var(--color-info);">📊 プレビュー: <strong>4件</strong> のケースを追加します（妥当性チェック: ✔ 4件 / ⚠ 0件 / ✘ 0件）</span>
+                      <button class="btn btn--sm">プレビュー表示</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
+                  <button class="btn" onclick="toggleForm('datasetForm')">キャンセル</button>
+                  <button class="btn btn--primary">保存（4件を追加）</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Judge tab -->
+          <div class="config-tab-content" id="config-tab-judge" style="display:none;">
+            <!-- Action bar with create button -->
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <div style="font-size: 13px; color: var(--color-text-muted);">登録済みAI評価器 5件</div>
+              <button class="btn btn--primary" onclick="toggleForm('judgeForm')">＋ 新規AI評価器を作成</button>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>評価器名</th>
+                  <th>評価対象</th>
+                  <th>利用AIモデル</th>
+                  <th>版数</th>
+                  <th>人手評価との一致率</th>
+                  <th>稼働状態</th>
+                  <th>最終更新</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="judgeTableBody"></tbody>
+            </table>
+
+            <!-- New evaluator form (hidden by default, shown via button click) -->
+            <div id="judgeForm" style="display:none; margin-top: 20px; border: 1px solid #c4b5fd; border-radius: 8px; background: #faf5ff;">
+              <div style="display:flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #c4b5fd;">
+                <div style="font-weight: 700; color: #5b21b6;">新規AI評価器を作成</div>
+                <button class="btn btn--ghost btn--sm" onclick="toggleForm('judgeForm')" style="font-size: 16px;">✕</button>
+              </div>
+              <div style="padding: 16px;">
+                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; margin-bottom: 12px;">
+                  <div>
+                    <label style="font-size: 12px; color: var(--color-text-muted); display: block; margin-bottom: 4px;">評価器名</label>
+                    <input class="input" style="width: 100%;" placeholder="例: 回答忠実度 評価器">
+                  </div>
+                  <div>
+                    <label style="font-size: 12px; color: var(--color-text-muted); display: block; margin-bottom: 4px;">評価対象レイヤー</label>
+                    <select class="select" style="width: 100%;">
+                      <option>1ターン単位</option>
+                      <option>対話全体</option>
+                      <option>動作経路</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-size: 12px; color: var(--color-text-muted); display: block; margin-bottom: 4px;">利用AIモデル</label>
+                    <select class="select" style="width: 100%;">
+                      <option>gpt-x</option>
+                      <option>claude-x</option>
+                      <option>ルールベース（AI不使用）</option>
+                    </select>
+                  </div>
+                </div>
+                <div style="margin-bottom: 12px;">
+                  <label style="font-size: 12px; color: var(--color-text-muted); display: block; margin-bottom: 4px;">採点基準（ルブリック）</label>
+                  <textarea class="input" style="width: 100%; height: 80px; padding: 8px; font-family: inherit;" placeholder="例:&#10;5点: FAQに完全準拠した正確な回答&#10;3点: 概ね正しいが補足情報が不足&#10;1点: FAQ範囲外の情報を含む"></textarea>
+                </div>
+                <div style="margin-bottom: 12px;">
+                  <label style="font-size: 12px; color: var(--color-text-muted); display: block; margin-bottom: 4px;">評価プロンプトテンプレート</label>
+                  <textarea class="input" style="width: 100%; height: 90px; padding: 8px; font-family: 'Consolas', monospace; font-size: 12px;" placeholder="以下の対話に対して、参照FAQ「{faq_id}」に忠実かを5段階で評価してください...&#10;対話: {conversation}&#10;参照FAQ: {faq_content}&#10;&#10;出力形式: { score: 1-5, evidence: 根拠, reasoning: 判定理由 }"></textarea>
+                </div>
+                <div style="margin-bottom: 12px;">
+                  <label style="font-size: 12px; color: var(--color-text-muted); display: block; margin-bottom: 4px;">サンプル例（Few-shot、任意）</label>
+                  <textarea class="input" style="width: 100%; height: 60px; padding: 8px; font-family: inherit;" placeholder="高評価/低評価の参考例を入力できます"></textarea>
+                </div>
+                <div style="display:flex; gap: 8px; justify-content: flex-end; align-items: center;">
+                  <span style="font-size: 11px; color: var(--color-text-muted); margin-right: auto;">作成後にキャリブレーション（人手評価との一致率測定）を実施できます</span>
+                  <button class="btn" onclick="toggleForm('judgeForm')">キャンセル</button>
+                  <button class="btn">サンプルでテスト</button>
+                  <button class="btn btn--primary">評価器を作成</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Reports (FE-10) -->
+      <section class="screen" id="screen-reports">
+        <div class="card">
+          <div class="card__header">
+            <div>
+              <div class="card__title">レポート出力</div>
+              <div class="card__subtitle">月次・四半期レポートを PDF / Excel / PowerPoint で出力</div>
+            </div>
+          </div>
+          <div class="empty">期間を選択して PDF / Excel で出力できます（仮実装）</div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  // ========== Mock Data ==========
+  const conversations = [
+    { id: 'c-20260426-0042', date: '2026/04/26 10:23', user: 'u-1903', faq: 'FAQ-203 配送日変更', turns: 5, outcome: 'タイムアウト', csat: 3, score: 0.71, status: 'badContain' },
+    { id: 'c-20260426-0041', date: '2026/04/26 10:18', user: 'u-2284', faq: 'FAQ-145 キャンセル料', turns: 3, outcome: '解決', csat: 5, score: 0.92, status: 'reviewed' },
+    { id: 'c-20260426-0040', date: '2026/04/26 10:11', user: 'u-1043', faq: 'FAQ-076 会員ID', turns: 4, outcome: '解決', csat: 4, score: 0.88, status: 'unreviewed' },
+    { id: 'c-20260426-0039', date: '2026/04/26 10:05', user: 'u-1830', faq: '(該当なし)', turns: 6, outcome: '有人転送', csat: 2, score: 0.42, status: 'unreviewed' },
+    { id: 'c-20260426-0038', date: '2026/04/26 09:58', user: 'u-3211', faq: 'FAQ-088 ポイント有効期限', turns: 2, outcome: '解決', csat: 5, score: 0.95, status: 'reviewed' },
+    { id: 'c-20260426-0037', date: '2026/04/26 09:50', user: 'u-2055', faq: 'FAQ-203 配送日変更', turns: 7, outcome: '離脱', csat: null, score: 0.55, status: 'reviewing' },
+    { id: 'c-20260426-0036', date: '2026/04/26 09:43', user: 'u-1572', faq: 'FAQ-301 領収書再発行', turns: 3, outcome: '解決', csat: 4, score: 0.84, status: 'unreviewed' },
+    { id: 'c-20260426-0035', date: '2026/04/26 09:33', user: 'u-1190', faq: 'FAQ-145 キャンセル料', turns: 8, outcome: '有人転送', csat: 1, score: 0.38, status: 'reviewing' },
+    { id: 'c-20260426-0034', date: '2026/04/26 09:21', user: 'u-2734', faq: 'FAQ-203 配送日変更', turns: 4, outcome: '解決', csat: 5, score: 0.91, status: 'unreviewed' },
+    { id: 'c-20260426-0033', date: '2026/04/26 09:15', user: 'u-1820', faq: 'FAQ-088 ポイント有効期限', turns: 3, outcome: '解決', csat: 4, score: 0.87, status: 'unreviewed' },
+    { id: 'c-20260426-0032', date: '2026/04/26 09:02', user: 'u-2103', faq: '(該当なし)', turns: 5, outcome: '有人転送', csat: 2, score: 0.45, status: 'unreviewed' },
+    { id: 'c-20260426-0031', date: '2026/04/26 08:54', user: 'u-1655', faq: 'FAQ-076 会員ID', turns: 2, outcome: '解決', csat: 5, score: 0.94, status: 'reviewed' },
+    { id: 'c-20260426-0030', date: '2026/04/26 08:41', user: 'u-1311', faq: 'FAQ-203 配送日変更', turns: 6, outcome: 'タイムアウト', csat: 3, score: 0.62, status: 'unreviewed' },
+    { id: 'c-20260426-0029', date: '2026/04/26 08:30', user: 'u-1908', faq: 'FAQ-145 キャンセル料', turns: 4, outcome: '解決', csat: 4, score: 0.86, status: 'unreviewed' },
+    { id: 'c-20260426-0028', date: '2026/04/26 08:22', user: 'u-2811', faq: 'FAQ-301 領収書再発行', turns: 3, outcome: '解決', csat: 5, score: 0.93, status: 'unreviewed' }
+  ];
+
+  const jobs = [
+    { id: 'test-2042', name: 'プロンプトv12 回帰テスト', dataset: '本番回帰用_v3 (124件)', model: 'gpt-x@2026-04', evaluator: '標準セット', status: '完了', score: '0.89', date: '2026/04/26 02:00' },
+    { id: 'test-2041', name: 'モデル比較: claude vs gpt', dataset: '本番回帰用_v3', model: 'claude-x@2026-04', evaluator: '標準セット', status: '実行中', score: '—', date: '2026/04/26 01:30' },
+    { id: 'test-2040', name: 'FAQ-203改訂後の検証', dataset: '配送カテゴリ抜粋 (24件)', model: 'gpt-x@2026-04', evaluator: 'FAQ参照型セット', status: '完了', score: '0.94', date: '2026/04/25 18:45' },
+    { id: 'test-2039', name: '週次自動回帰テスト', dataset: '本番回帰用_v3', model: 'gpt-x@2026-04', evaluator: '標準セット', status: '完了', score: '0.88', date: '2026/04/22 02:00' },
+    { id: 'test-2038', name: '評価器v4のキャリブレーション', dataset: 'キャリブレーション用', model: '—', evaluator: '評価器v4', status: '失敗', score: '—', date: '2026/04/21 16:20' }
+  ];
+
+  const goldensets = [
+    { name: '本番回帰用_v3', count: 124, coverage: '8カテゴリ全網羅', difficulty: '易30/中60/難34', last: '0.89', updated: '2026/04/24', version: 'v3.2' },
+    { name: '配送カテゴリ抜粋', count: 24, coverage: '配送カテゴリ', difficulty: '易10/中10/難4', last: '0.94', updated: '2026/04/22', version: 'v1.0' },
+    { name: '難ケース集', count: 48, coverage: '全分野横断', difficulty: '難48', last: '0.71', updated: '2026/04/15', version: 'v2.0' },
+    { name: '個人情報・コンプラ', count: 32, coverage: 'コンプライアンス', difficulty: '中20/難12', last: '1.00', updated: '2026/04/10', version: 'v1.1' }
+  ];
+
+  const judges = [
+    { name: '回答忠実度 評価器', layer: '1ターン', model: 'gpt-x', version: 'v3.2', kappa: '0.78', status: '稼働中', updated: '2026/04/20' },
+    { name: '対話完結度 評価器', layer: '対話全体', model: 'claude-x', version: 'v2.4', kappa: '0.72', status: '稼働中', updated: '2026/04/12' },
+    { name: '絞り込み効率 評価器', layer: '対話全体', model: 'gpt-x', version: 'v1.5', kappa: '0.65', status: '稼働中', updated: '2026/04/08' },
+    { name: '想定経路との一致度', layer: '動作経路', model: '（ルールベース）', version: 'v1.0', kappa: '対象外', status: '稼働中', updated: '2026/03/28' },
+    { name: '個人情報の漏洩検知', layer: '1ターン', model: 'claude-x', version: 'v2.0', kappa: '0.84', status: '稼働中', updated: '2026/04/01' }
+  ];
+
+  // Test result cases (sample of 124 total)
+  const testCases = [
+    // Failed (5)
+    { id: 'case-087', cat: '配送日変更', q: '「明日の配達を別の日に」', expected: 'FAQ-203', actual: 'FAQ-198を誤マッチ', score: 0.42, status: 'failed' },
+    { id: 'case-103', cat: 'ポイント', q: '「Ptはいつ消える？」', expected: 'FAQ-088', actual: 'FAQ未該当として終話', score: 0.38, status: 'failed' },
+    { id: 'case-066', cat: 'アプリ', q: '「ログインボタンが反応しない」', expected: 'FAQ-810', actual: 'FAQ未該当として有人転送', score: 0.55, status: 'failed' },
+    { id: 'case-119', cat: 'キャンセル', q: '「もう発送された商品をキャンセル」', expected: 'FAQ-145', actual: 'FAQ-203を誤マッチ', score: 0.48, status: 'failed' },
+    { id: 'case-098', cat: '会員情報', q: '「退会手続きをしたい」', expected: 'FAQ-076', actual: '途中でタイムアウト', score: 0.51, status: 'failed' },
+    // Warning (showing 6 of 11)
+    { id: 'case-045', cat: '会員情報', q: '「メアド変えたいんだけど」', expected: 'FAQ-076', actual: '正解だが絞り込み3往復', score: 0.72, status: 'warning' },
+    { id: 'case-112', cat: '支払い', q: '「コンビニで払いたい」', expected: 'FAQ-901', actual: 'FAQ範囲外の補足を生成', score: 0.68, status: 'warning' },
+    { id: 'case-074', cat: '配送', q: '「明日の午前中に届く？」', expected: 'FAQ-203', actual: '正解だが冗長な応答', score: 0.78, status: 'warning' },
+    { id: 'case-091', cat: 'ポイント', q: '「クーポン併用できる？」', expected: 'FAQ-612', actual: '正解だが選択肢提示が不適切', score: 0.74, status: 'warning' },
+    { id: 'case-022', cat: '返品', q: '「サイズ違いで返品したい」', expected: 'FAQ-722', actual: '正解だが追加情報が不足', score: 0.81, status: 'warning' },
+    { id: 'case-058', cat: '支払い', q: '「分割払いって出来ますか」', expected: 'FAQ-901', actual: '正解だが料金詳細が曖昧', score: 0.76, status: 'warning' },
+    // Passed (showing 10 of 108)
+    { id: 'case-001', cat: '配送', q: '「配送状況を確認したい」', expected: 'FAQ-201', actual: 'FAQ-201で正解回答', score: 0.96, status: 'passed' },
+    { id: 'case-002', cat: '配送', q: '「お届け日を変更できますか」', expected: 'FAQ-203', actual: 'FAQ-203で正解回答', score: 0.94, status: 'passed' },
+    { id: 'case-005', cat: '返品', q: '「返品の手順を教えて」', expected: 'FAQ-722', actual: 'FAQ-722で正解回答', score: 0.93, status: 'passed' },
+    { id: 'case-008', cat: 'ポイント', q: '「ポイントの確認方法は？」', expected: 'FAQ-088', actual: 'FAQ-088で正解回答', score: 0.95, status: 'passed' },
+    { id: 'case-011', cat: '会員情報', q: '「パスワードを忘れた」', expected: 'FAQ-076', actual: 'FAQ-076で正解回答', score: 0.97, status: 'passed' },
+    { id: 'case-015', cat: '支払い', q: '「クレジットカードで支払いたい」', expected: 'FAQ-901', actual: 'FAQ-901で正解回答', score: 0.96, status: 'passed' },
+    { id: 'case-019', cat: 'キャンセル', q: '「注文をキャンセルしたい」', expected: 'FAQ-145', actual: 'FAQ-145で正解回答', score: 0.92, status: 'passed' },
+    { id: 'case-024', cat: '配送', q: '「配送料はいくら？」', expected: 'FAQ-204', actual: 'FAQ-204で正解回答', score: 0.94, status: 'passed' },
+    { id: 'case-031', cat: '返品', q: '「返金されるのはいつ？」', expected: 'FAQ-723', actual: 'FAQ-723で正解回答', score: 0.91, status: 'passed' },
+    { id: 'case-040', cat: 'メルマガ', q: '「メルマガを止めたい」', expected: 'FAQ-501', actual: 'FAQ-501で正解回答', score: 0.93, status: 'passed' }
+  ];
+
+  function statusLabel(s) {
+    return s === 'passed' ? '<span class="badge badge--ok">合格</span>'
+      : s === 'warning' ? '<span class="badge badge--warn">要確認</span>'
+      : '<span class="badge badge--ng">失敗</span>';
+  }
+
+  function caseScoreBadge(score, status) {
+    const cls = status === 'passed' ? 'ok' : status === 'warning' ? 'warn' : 'ng';
+    return `<span class="badge badge--${cls}">${score.toFixed(2)}</span>`;
+  }
+
+  function renderTestCases() {
+    const groups = {
+      all: testCases,
+      passed: testCases.filter(c => c.status === 'passed'),
+      warning: testCases.filter(c => c.status === 'warning'),
+      failed: testCases.filter(c => c.status === 'failed')
+    };
+    Object.entries(groups).forEach(([key, list]) => {
+      const tbody = document.getElementById('testCases' + key.charAt(0).toUpperCase() + key.slice(1) + 'Body');
+      if (!tbody) return;
+      tbody.innerHTML = list.map(c => `
+        <tr style="cursor:pointer;">
+          <td><strong>${c.id}</strong></td>
+          <td>${c.cat}</td>
+          <td>${c.q}</td>
+          <td>${c.expected}</td>
+          <td>${c.actual}</td>
+          <td>${caseScoreBadge(c.score, c.status)}</td>
+          <td>${statusLabel(c.status)}</td>
+        </tr>
+      `).join('');
+    });
+  }
+
+  const improvements = [
+    {
+      id: 'imp-001', cat: 'FAQ追加', iconCls: 'faq-add', icon: '＋', severity: 'high',
+      signal: 'FAQ未該当の質問が急増（配送カテゴリ）',
+      title: '「領収書を再発行したい」に該当するFAQがありません',
+      impact: 76, evidence: '直近30日で76件の質問が該当FAQなしで離脱・有人転送に',
+      action: 'AIが新規FAQ案を自動生成しました',
+      draft: 'Q: 領収書の再発行はできますか？\nA: マイページの「ご注文履歴」から該当注文を選択し、「領収書ダウンロード」ボタンより再発行できます。発行回数の上限は1注文につき3回までです。',
+      effortLevel: '小（5分）', expectedImpact: '月間 約76件の解決見込み',
+      canAutoApply: true
+    },
+    {
+      id: 'imp-002', cat: 'FAQ追加', iconCls: 'faq-add', icon: '＋', severity: 'med',
+      signal: 'FAQ未該当の質問が定常的に発生',
+      title: '「ギフト包装は可能？」に該当するFAQがありません',
+      impact: 64, evidence: '直近30日で64件の質問が該当FAQなし',
+      action: 'AIが新規FAQ案を自動生成しました',
+      draft: 'Q: ギフト包装は可能ですか？\nA: 一部の商品はカートで「ギフト包装」を選択できます。包装料金は1点につき330円（税込）です。',
+      effortLevel: '小（5分）', expectedImpact: '月間 約64件の解決見込み',
+      canAutoApply: true
+    },
+    {
+      id: 'imp-003', cat: 'FAQ改訂', iconCls: 'faq-fix', icon: '✎', severity: 'high',
+      signal: 'FAQ検索の取りこぼし率が基準値超え',
+      title: 'FAQ-088「ポイント有効期限」の表現バリエーション不足',
+      impact: 142, evidence: '142件の関連質問が類似度0.72未満でマッチ失敗',
+      action: '「有効期限」「失効」「期限切れ」など想定質問の追記を推奨',
+      draft: '追加する想定質問:\n・ポイントの有効期限はいつまで？\n・ポイントは失効しますか？\n・期限切れポイントは復活できる？',
+      effortLevel: '小（3分）', expectedImpact: '月間 約142件のマッチ率改善',
+      canAutoApply: true
+    },
+    {
+      id: 'imp-004', cat: 'プロンプト調整', iconCls: 'prompt', icon: '🤖', severity: 'high',
+      signal: '未解決終話の疑いが急増（前日比+8件）',
+      title: '終話前のユーザー満足確認ターンを追加',
+      impact: 42, evidence: '未解決終話の疑い42件のうち、終話前に確認ターンがなかったケースが87%',
+      action: 'システムプロンプトに「終話前に解決確認を1ターン挟む」ルールを追加',
+      draft: '差分: 末尾に「ご不明点が解消されたかご確認ください。[解決した] [まだ質問がある]」の選択肢提示を追加',
+      effortLevel: '中（30分・テスト含む）', expectedImpact: '未解決終話率を30〜50%削減見込み',
+      canAutoApply: false
+    },
+    {
+      id: 'imp-005', cat: 'プロンプト調整', iconCls: 'prompt', icon: '🤖', severity: 'high',
+      signal: '回答忠実度の平均が0.83に低下（基準値0.85割れ）',
+      title: 'FAQに記載のない情報を補足してしまうケースが3件',
+      impact: 3, evidence: '回答忠実度が0.6未満の3件で、FAQ範囲外の補足が含まれていた',
+      action: 'グラウンディング指示「FAQに記載のない情報は出さない」を強化',
+      draft: '差分: システムプロンプトに「参照FAQの範囲を超える情報は『FAQに記載がないため別途お問い合わせください』と返す」を追加',
+      effortLevel: '中（30分・テスト含む）', expectedImpact: 'コンプラ違反リスクの低減',
+      canAutoApply: false
+    },
+    {
+      id: 'imp-006', cat: 'FAQ改訂', iconCls: 'faq-fix', icon: '✎', severity: 'med',
+      signal: '顧客満足度が低い会話の急増（直近24時間で18件）',
+      title: 'FAQ-203「配送日変更」とFAQ-198「配送先住所変更」が混同されやすい',
+      impact: 38, evidence: '38件で誤マッチによる絞り込み追加ターンが発生',
+      action: '両FAQの冒頭に「変更したいのは日付？住所？」の明示分岐を追記',
+      draft: '差分: 各FAQ冒頭に「※配送先住所の変更はFAQ-198を参照」「※配送日の変更はFAQ-203を参照」を追加',
+      effortLevel: '小（5分）', expectedImpact: '誤マッチ削減で平均往復数 -0.3',
+      canAutoApply: true
+    },
+    {
+      id: 'imp-007', cat: '検索チューニング', iconCls: 'retriever', icon: '🔍', severity: 'low',
+      signal: '絞り込みの平均往復数が3.6に上昇',
+      title: 'カタカナ表記揺れで検索が失敗しているケース多数',
+      impact: 53, evidence: '「クーポン/クーポン券」「ポイント/Pt」など53件で取り逃し',
+      action: '同義語辞書に5件追加（クーポン↔クーポン券、Pt↔ポイント 他）',
+      draft: '辞書追加: クーポン ↔ クーポン券, バウチャー / Pt ↔ ポイント / メルマガ ↔ メールマガジン, ニュースレター',
+      effortLevel: '小（5分）', expectedImpact: '月間 約53件の検索精度向上',
+      canAutoApply: true
+    }
+  ];
+
+  function impRow(imp) {
+    const sevDot = imp.severity === 'high' ? '⚠' : imp.severity === 'med' ? '●' : 'i';
+    const sevCls = imp.severity === 'high' ? 'imp-sig--high' : imp.severity === 'med' ? 'imp-sig--med' : 'imp-sig--low';
+    return `
+      <div class="imp-item">
+        <div class="imp-icon imp-icon--${imp.iconCls}">${imp.icon}</div>
+        <div>
+          <div class="imp-signal ${sevCls}"><span class="imp-sig-dot">${sevDot}</span> 検知: ${imp.signal}</div>
+          <div class="imp-main__title">${imp.title}</div>
+          <div class="imp-main__meta">
+            <span><span class="imp-main__cat">${imp.cat}</span></span>
+            <span class="impact">影響: ${imp.impact}件/月</span>
+            <span>想定工数: ${imp.effortLevel}</span>
+          </div>
+        </div>
+        <div class="imp-actions">
+          <button class="btn btn--sm">詳細</button>
+          ${imp.canAutoApply ? '<button class="btn btn--sm btn--primary">承認して適用</button>' : '<button class="btn btn--sm btn--primary">レビュー依頼</button>'}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderImprovements() {
+    const dashEl = document.getElementById('improvementListDash');
+    if (dashEl) dashEl.innerHTML = improvements.map(impRow).join('');
+    const fullEl = document.getElementById('improvementList');
+    if (fullEl) fullEl.innerHTML = improvements.map(impRow).join('');
+  }
+
+  function statusBadge(s) {
+    const map = {
+      'unreviewed': ['gray', '未レビュー'],
+      'reviewing': ['info', 'レビュー中'],
+      'reviewed': ['ok', '完了'],
+      'badContain': ['ng', '要確認']
+    };
+    const [cls, label] = map[s] || ['gray', s];
+    return `<span class="badge badge--${cls}">${label}</span>`;
+  }
+
+  function outcomeBadge(o) {
+    if (o === '解決') return `<span class="badge badge--ok">${o}</span>`;
+    if (o === '有人転送' || o === 'エスカレ') return `<span class="badge badge--warn">${o}</span>`;
+    if (o === '離脱' || o === 'タイムアウト') return `<span class="badge badge--ng">${o}</span>`;
+    return o;
+  }
+
+  function csatCell(v) {
+    if (v == null) return '—';
+    const cls = v >= 4 ? 'ok' : v >= 3 ? 'warn' : 'ng';
+    return `<span class="badge badge--${cls}">${v}/5</span>`;
+  }
+
+  function scoreCell(v) {
+    const cls = v >= 0.85 ? 'ok' : v >= 0.7 ? 'warn' : 'ng';
+    return `<span class="badge badge--${cls}">${v.toFixed(2)}</span>`;
+  }
+
+  function jobStatusBadge(s) {
+    if (s === '完了') return `<span class="badge badge--ok">${s}</span>`;
+    if (s === '実行中') return `<span class="badge badge--info">${s}</span>`;
+    if (s === '失敗') return `<span class="badge badge--ng">${s}</span>`;
+    return s;
+  }
+
+  function renderConvoTable() {
+    const tbody = document.getElementById('convoTableBody');
+    tbody.innerHTML = conversations.map(c => `
+      <tr data-id="${c.id}" class="js-row-detail">
+        <td onclick="event.stopPropagation()"><input type="checkbox"></td>
+        <td><strong>${c.id}</strong></td>
+        <td>${c.date}</td>
+        <td>${c.user}</td>
+        <td>${c.faq}</td>
+        <td>${outcomeBadge(c.outcome)}</td>
+        <td>${csatCell(c.csat)}</td>
+        <td>${scoreCell(c.score)}</td>
+      </tr>
+    `).join('');
+    tbody.querySelectorAll('.js-row-detail').forEach(tr => {
+      tr.addEventListener('click', () => switchScreen('detail'));
+    });
+  }
+
+  function renderJobsTable() {
+    document.getElementById('jobsTableBody').innerHTML = jobs.map(j => {
+      const rerunBtn = j.status === '実行中'
+        ? '<button class="btn btn--sm" disabled style="opacity:0.5;">実行中</button>'
+        : '<button class="btn btn--sm">▶ 再実行</button>';
+      return `
+      <tr>
+        <td><strong>${j.id}</strong></td>
+        <td>${j.name}</td>
+        <td>${j.dataset}</td>
+        <td>${j.model}</td>
+        <td>${j.evaluator}</td>
+        <td>${jobStatusBadge(j.status)}</td>
+        <td>${j.score}</td>
+        <td>${j.date}</td>
+        <td>${rerunBtn}</td>
+      </tr>
+    `;
+    }).join('');
+  }
+
+  function renderGoldensetTable() {
+    document.getElementById('goldensetTableBody').innerHTML = goldensets.map(g => `
+      <tr>
+        <td><strong>${g.name}</strong></td>
+        <td>${g.count}</td>
+        <td>${scoreCell(parseFloat(g.last))}</td>
+        <td>${g.updated}</td>
+        <td>${g.version}</td>
+        <td><div style="display:flex; gap:4px;"><button class="btn btn--sm">ケース編集</button><button class="btn btn--sm">複製</button></div></td>
+      </tr>
+    `).join('');
+  }
+
+  function renderJudgeTable() {
+    document.getElementById('judgeTableBody').innerHTML = judges.map(j => `
+      <tr>
+        <td><strong>${j.name}</strong></td>
+        <td>${j.layer}</td>
+        <td>${j.model}</td>
+        <td>${j.version}</td>
+        <td>${j.kappa}</td>
+        <td><span class="badge badge--ok">${j.status}</span></td>
+        <td>${j.updated}</td>
+        <td><div style="display:flex; gap:4px;"><button class="btn btn--sm">編集</button><button class="btn btn--sm">サンプルでテスト</button></div></td>
+      </tr>
+    `).join('');
+  }
+
+  // ========== Charts ==========
+  let chartsInited = false;
+  function initCharts() {
+    if (chartsInited) return;
+    chartsInited = true;
+
+    const days = Array.from({length: 30}, (_, i) => `4/${i+1 < 10 ? '0' : ''}${i+1}`);
+    const containment = days.map((_, i) => 70 + Math.sin(i * 0.4) * 4 + i * 0.2 + Math.random() * 2);
+
+    new Chart(document.getElementById('kpiChart'), {
+      type: 'line',
+      data: {
+        labels: days,
+        datasets: [
+          { label: '自己解決率', data: containment, borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.1)', tension: 0.3, fill: true },
+          { label: '問題解決率', data: containment.map(v => v - 12 - Math.random() * 3), borderColor: '#10b981', tension: 0.3 },
+          { label: '顧客満足度(%)', data: containment.map(() => 80 + Math.random() * 6), borderColor: '#f59e0b', tension: 0.3 }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: false } } }
+    });
+
+    new Chart(document.getElementById('outcomeChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['解決', '一部解決', '有人転送', '離脱・タイムアウト'],
+        datasets: [{ data: [64, 14, 12, 10], backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'] }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } } } }
+    });
+
+    new Chart(document.getElementById('faqChart'), {
+      type: 'bar',
+      data: {
+        labels: ['FAQ-203 配送日', 'FAQ-145 キャンセル', 'FAQ-088 ポイント', 'FAQ-076 会員ID', 'FAQ-301 領収書', 'FAQ-501 メルマガ', 'FAQ-612 クーポン', 'FAQ-722 返品', 'FAQ-810 アプリ', 'FAQ-901 支払い'],
+        datasets: [{ label: '参照数', data: [842, 624, 518, 392, 287, 211, 198, 175, 142, 119], backgroundColor: '#4f46e5' }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { y: { ticks: { font: { size: 10 } } } } }
+    });
+
+    new Chart(document.getElementById('jobChart'), {
+      type: 'line',
+      data: {
+        labels: ['4/01', '4/05', '4/08', '4/12', '4/15', '4/19', '4/22', '4/26'],
+        datasets: [{ label: '本番回帰用_v3 平均スコア', data: [0.85, 0.86, 0.87, 0.88, 0.86, 0.88, 0.88, 0.89], borderColor: '#4f46e5', tension: 0.3, fill: true, backgroundColor: 'rgba(79,70,229,0.1)' }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { suggestedMin: 0.7, suggestedMax: 1.0 } } }
+    });
+
+  }
+
+  // ========== Navigation ==========
+  function switchScreen(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('is-active'));
+    const target = document.getElementById('screen-' + name);
+    if (target) target.classList.add('is-active');
+
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('is-active'));
+    const navName = name === 'detail' ? 'conversations' : name;
+    document.querySelectorAll(`.nav-item[data-screen="${navName}"]`).forEach(n => n.classList.add('is-active'));
+
+    const titles = {
+      dashboard: 'モニタリング＆改善',
+      conversations: '会話一覧',
+      detail: '会話詳細',
+      jobs: '評価テスト実行',
+      'test-config': 'テスト設定',
+      reports: 'レポート出力'
+    };
+    document.getElementById('topbarTitle').textContent = titles[name] || '';
+
+    if (name === 'dashboard') setTimeout(initCharts, 50);
+    if (name === 'jobs') setTimeout(initCharts, 50);
+    document.getElementById('content').scrollTop = 0;
+  }
+
+  document.querySelectorAll('[data-screen]').forEach(el => {
+    el.addEventListener('click', () => switchScreen(el.dataset.screen));
+  });
+
+  // Test result tabs
+  document.querySelectorAll('[data-test-tab]').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const siblings = tab.parentElement.querySelectorAll('[data-test-tab]');
+      siblings.forEach(t => t.classList.remove('is-active'));
+      tab.classList.add('is-active');
+      document.querySelectorAll('.test-tab-content').forEach(c => c.style.display = 'none');
+      document.getElementById('test-tab-' + tab.dataset.testTab).style.display = 'block';
+    });
+  });
+
+  // Toggle inline form sections (dataset / judge create forms)
+  window.toggleForm = function(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    if (el.style.display === 'block') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  };
+
+  // Test config tabs (dataset / judge)
+  document.querySelectorAll('[data-config-tab]').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const siblings = tab.parentElement.querySelectorAll('[data-config-tab]');
+      siblings.forEach(t => t.classList.remove('is-active'));
+      tab.classList.add('is-active');
+      document.querySelectorAll('.config-tab-content').forEach(c => c.style.display = 'none');
+      document.getElementById('config-tab-' + tab.dataset.configTab).style.display = 'block';
+    });
+  });
+
+  // ========== Init ==========
+  renderConvoTable();
+  renderJobsTable();
+  renderGoldensetTable();
+  renderJudgeTable();
+  renderTestCases();
+  renderImprovements();
+  setTimeout(initCharts, 100);
+</script>
+</body>
+</html>
